@@ -21,6 +21,7 @@ Activate-PIMRole -UserName nathan@mcsmlab.com
 
 .LINK
 https://www.mcsmlab.com/about
+https://github.com/MCSMLab/Activate-PimRoles/blob/master/Activate-PIMRole.ps1
 #>
 
 PARAM
