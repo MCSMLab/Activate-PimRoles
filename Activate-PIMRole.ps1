@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 This script activates a PIM role
 
@@ -44,6 +44,7 @@ If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModu
         Install-Module -Name Microsoft.Azure.ActiveDirectory.PIM.PSModule
     } 
     
+    #Exit if PowerShell is not run as admin
     Else
     {
         Write-Host "You are not running the script as Local Admin, we can not install the correct Module. The script will exit now" -ForegroundColor Yellow
@@ -93,10 +94,12 @@ Else {
             Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason | Out-Null
         }
         
+        #Show active roles
         $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID
         If ($CurrentRoles) {
             Write-Host "You now have the privileged role(s):    " -ForegroundColor Green -NoNewline
             Write-Host $($CurrentRoles.RoleName) -ForegroundColor Magenta
+        
             Write-Host "The privileged role is valid until :    " -ForegroundColor Green -NoNewline
             Write-Host  $($CurrentRoles.ExpirationTime) -ForegroundColor Magenta
         }
