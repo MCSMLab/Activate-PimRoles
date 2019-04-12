@@ -10,12 +10,15 @@ UserName is a required parameter
 .NOTES
 1.0 - 
 2.0 - Added default answers
+3.0 - Now translates role activation time to the local time zone of the computer running the script
 
 Activate-PIMRole.ps1
-v2.0
-4/9/2019
+v3.0
+4/12/2019
 By Nathan O'Bryan, MVP|MCSM
 nathan@mcsmlab.com
+
+Special thanks to Damian Scoles (https://www.practicalpowershell.com/) for an assist with the time translation in V3
 
 .EXAMPLE
 Activate-PIMRole -UserName nathan@mcsmlab.com
@@ -42,7 +45,7 @@ Clear-Host
 #Check for PIM PowerShell module
 If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModule' ).path)
 {
-    Write-Host "The Azure AD Privileged Identity Management Module is not installed, we will try to install it now." -ForegroundColor Yellow
+    Write-Host "The Azure AD Privileged Identity Management Module is not installed, we will try to install it now" -ForegroundColor Yellow
     write-Host "This will only work if you are running this script as Local Administrator" -ForegroundColor Yellow
     Write-Host ""
 
@@ -62,11 +65,10 @@ If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModu
 
 #Connect to PIM service and get current roles
 Connect-PimService -UserName $UserName
-$CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName,ExpirationTime,RoleID
+$CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID | ForEach {$BaseTime = $_.ExpirationTime;$SplitTime = $BaseTime.split(' ');$NewTime = $SplitTime[0]+' '+$SplitTime[1]+' '+$SplitTime[2];$RealTime = [datetime]$NewTime;$NewRealTime = $RealTime.AddHours($TimeOffSetUTC);$PartOne = $NewRealTime.ToShortDateString();$PartTwo = $NewRealTime.ToLongTimeString();$AllTime = $PartOne+' '+$PartTwo;$_.ExpirationTime = $AllTime;Return $_}
 
 #Check currently assigned roles
 If ($CurrentRoles) {
-    $RoleEnabled = $True
     Write-Host "You currently have the role(s):         " -ForegroundColor Green -NoNewline
     Write-Host $($CurrentRoles.RoleName) -ForegroundColor Green
     
@@ -81,15 +83,14 @@ If ($CurrentRoles) {
             Disable-PrivilegedRoleAssignment -RoleId $_.RoleId | Out-Null
         }
         
-        $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID
+        $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName,ExpirationTime,RoleID
         If (-Not ($CurrentRoles) ) {
             Write-Host "You do not have any active roles" -ForegroundColor Yellow -NoNewline
         }
     }
 }
 
-Else {
-    
+Else {   
     Write-Host "You do not have any active roles"
     
     #Activate a role
@@ -104,7 +105,8 @@ Else {
         }
         
         #Show active roles
-        $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID
+        $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID | ForEach {$BaseTime = $_.ExpirationTime;$SplitTime = $BaseTime.split(' ');$NewTime = $SplitTime[0]+' '+$SplitTime[1]+' '+$SplitTime[2];$RealTime = [datetime]$NewTime;$NewRealTime = $RealTime.AddHours($TimeOffSetUTC);$PartOne = $NewRealTime.ToShortDateString();$PartTwo = $NewRealTime.ToLongTimeString();$AllTime = $PartOne+' '+$PartTwo;$_.ExpirationTime = $AllTime;Return $_}
+        
         If ($CurrentRoles) {
             Write-Host "You now have the privileged role(s):    " -ForegroundColor Green -NoNewline
             Write-Host $($CurrentRoles.RoleName) -ForegroundColor Green
@@ -114,3 +116,4 @@ Else {
         }
     }
 }
+Disconnect-PimService
