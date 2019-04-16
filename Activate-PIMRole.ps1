@@ -11,10 +11,11 @@ UserName is a required parameter
 1.0 - 
 2.0 - Added default answers
 3.0 - Now translates role activation time to the local time zone of the computer running the script
+3.1 - Cleaned up time translation
 
 Activate-PIMRole.ps1
-v3.0
-4/12/2019
+v3.1
+4/16/2019
 By Nathan O'Bryan, MVP|MCSM
 nathan@mcsmlab.com
 
@@ -65,7 +66,7 @@ If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModu
 
 #Connect to PIM service and get current roles
 Connect-PimService -UserName $UserName
-$CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID | ForEach {$BaseTime = $_.ExpirationTime;$SplitTime = $BaseTime.split(' ');$NewTime = $SplitTime[0]+' '+$SplitTime[1]+' '+$SplitTime[2];$RealTime = [datetime]$NewTime;$NewRealTime = $RealTime.AddHours($TimeOffSetUTC);$PartOne = $NewRealTime.ToShortDateString();$PartTwo = $NewRealTime.ToLongTimeString();$AllTime = $PartOne+' '+$PartTwo;$_.ExpirationTime = $AllTime;Return $_}
+$CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}
 
 #Check currently assigned roles
 If ($CurrentRoles) {
@@ -105,8 +106,7 @@ Else {
         }
         
         #Show active roles
-        $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.expirationtime) } | Select-Object RoleName,ExpirationTime,RoleID | ForEach {$BaseTime = $_.ExpirationTime;$SplitTime = $BaseTime.split(' ');$NewTime = $SplitTime[0]+' '+$SplitTime[1]+' '+$SplitTime[2];$RealTime = [datetime]$NewTime;$NewRealTime = $RealTime.AddHours($TimeOffSetUTC);$PartOne = $NewRealTime.ToShortDateString();$PartTwo = $NewRealTime.ToLongTimeString();$AllTime = $PartOne+' '+$PartTwo;$_.ExpirationTime = $AllTime;Return $_}
-        
+        $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}        
         If ($CurrentRoles) {
             Write-Host "You now have the privileged role(s):    " -ForegroundColor Green -NoNewline
             Write-Host $($CurrentRoles.RoleName) -ForegroundColor Green
@@ -116,4 +116,5 @@ Else {
         }
     }
 }
+
 Disconnect-PimService
