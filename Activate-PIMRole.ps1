@@ -11,7 +11,7 @@ UserName is a required parameter
 1.0 - 
 2.0 - Added default answers
 3.0 - Now translates role activation time to the local time zone of the computer running the script
-3.1 - Cleaned up time translation
+3.1 - Cleaned up time translation. Cleaned up formating and output.
 
 Activate-PIMRole.ps1
 v3.1
@@ -65,15 +65,17 @@ If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModu
 }
 
 #Connect to PIM service and get current roles
-Connect-PimService -UserName $UserName
+Connect-PimService -UserName $UserName | Out-Null
+Write-Host ""
+Write-Host ""
 $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}
 
 #Check currently assigned roles
 If ($CurrentRoles) {
-    Write-Host "You currently have the role(s):         " -ForegroundColor Green -NoNewline
+    Write-Host "You currently have the role(s):  " -ForegroundColor Green -NoNewline
     Write-Host $($CurrentRoles.RoleName) -ForegroundColor Green
     
-    Write-Host "This role is valid until:    " -ForegroundColor Green -NoNewline
+    Write-Host "This role is valid until:        " -ForegroundColor Green -NoNewline
     Write-Host  $($CurrentRoles.ExpirationTime) -ForegroundColor Green
     
     #Disable current roles on request
