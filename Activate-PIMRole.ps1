@@ -38,6 +38,7 @@ $DisableRoleDefault = 'Y'
 $EnableRoleDefault = 'Y'
 $ReasonDefault = 'Work'
 $DurationDefault = '8'
+$TicketDefault = '123'
 
 Clear-Host
 
@@ -82,18 +83,20 @@ Else {
     Write-Host "You do not have any active roles" -ForegroundColor Yellow
     
     #Activate a role
-    If (($EnableRole = Read-Host "Do you want to enable one or more privileged role(s)? [$($DisableRoleDefault)]") -eq '') {$EnableRole = $EnableRoleDefault} Else {}
+    If (($EnableRole = Read-Host "Do you want to enable one or more privileged role(s)? [$($EnableRoleDefault)]") -eq '') {$EnableRole = $EnableRoleDefault} Else {}
     If ($EnableRole -eq "Y") {
         $SelectedRoles = Get-PrivilegedRoleAssignment | Out-GridView -Title "Select the role(s) that you want to enable" -PassThru
         $SelectedRoles | ForEach-Object {
             If (($Reason = Read-Host "Provide a reason why you need the elevated role: $($_.RoleName) [$($ReasonDefault)]") -eq '') {$Reason = $ReasonDefault} Else {}
             If (($Duration = Read-Host "Provide a duration for this activation [$($DurationDefault)]") -eq '') {$Duration = $DurationDefault} Else {}
-            Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason -Duration $Duration | Out-Null
+            If (($Ticket = Read-Host "Provide a ticket number for this activation [$($TicketDefault)]") -eq '') {$Ticket = $TicketDefault} Else {}
+
+            Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason -Duration $Duration -TicketNumber $Ticket | Out-Null
             Write-Host}
 
     #Show active roles
     $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.ExpirationTime)} | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}        
-    If (-Not ($CurrentRoles)) {Write-Host "The requested role needs approval bebofre it will be active" -ForegroundColor Yellow}
+    If (-Not ($CurrentRoles)) {Write-Host "The requested role needs approval before it will be active" -ForegroundColor Yellow}
     ForEach ($Role in $CurrentRoles) {
         Write-Host "You now have the privileged role:       " -ForegroundColor Green -NoNewline
         Write-Host $($Role.RoleName) -ForegroundColor Green
