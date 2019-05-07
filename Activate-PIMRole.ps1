@@ -3,20 +3,20 @@
 This script activates a PIM role
 
 .DESCRIPTION
-UserName is a required parameter
+UserName is a required parameter, GlobalAdmin is optional
 
 .PARAMETER UserName
-
 .NOTES
 1.0 - 
 2.0 - Added default answers
 3.0 - Now translates role activation time to the local time zone of the computer running the script
 3.1 - Cleaned up time translation. Cleaned up formating and output.
-3.2 - Changed display of multiple active roles.
+3.2 - Changed display of multiple active roles
+4.0 - Added -GlobalAdmin switch which activates Global Admin role
 
 Activate-PIMRole.ps1
-v3.2
-4/24/2019
+v4.0
+5/7/2019
 By Nathan O'Bryan, MVP|MCSM
 nathan@mcsmlab.com
 
@@ -24,14 +24,19 @@ Special thanks to Damian Scoles (https://www.practicalpowershell.com/) for an as
 
 .EXAMPLE
 Activate-PIMRole -UserName nathan@mcsmlab.com
+Activate-PIMRole -UserName nathan@mcsmlab.com -GlobalAdmin
 
 .LINK
 https://www.mcsmlab.com/about
 https://github.com/MCSMLab/Activate-PimRoles/blob/master/Activate-PIMRole.ps1
 #>
 
-#Command line parameter
-PARAM ($UserName = $(Throw "-UserName is a required parameter" ))
+#Command line parameters
+[cmdletbinding()]
+Param (
+    [Parameter(Mandatory=$True)][String]$UserName,
+    [Parameter(Mandatory=$False)][Switch]$GlobalAdmin
+    )
 
 #Default answers
 $DisableRoleDefault = 'Y'
@@ -57,8 +62,29 @@ If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModu
     {Write-Host "You are not running the script as Local Admin. The script will exit now" -ForegroundColor Yellow
     Exit}}
 
-#Connect to PIM service and get current roles
 Connect-PimService -UserName $UserName | Format-List UserName, TenantName
+
+If ($GlobalAdmin) {
+    $SelectedRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.RoleName -Eq "Global Administrator") } | Select-Object RoleName, ExpirationTime, RoleID
+
+    $SelectedRoles | ForEach-Object {
+        If (($Reason = Read-Host "Provide a reason why you need the elevated role: $($_.RoleName) [$($ReasonDefault)]") -eq '') {$Reason = $ReasonDefault} Else {}
+        If (($Duration = Read-Host "Provide a duration for this activation [$($DurationDefault)]") -eq '') {$Duration = $DurationDefault} Else {}
+        If (($Ticket = Read-Host "Provide a ticket number for this activation [$($TicketDefault)]") -eq '') {$Ticket = $TicketDefault} Else {}
+        
+    Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason -Duration $Duration -TicketNumber $Ticket | Out-Null
+    Write-Host "You now have the privileged role:       " -ForegroundColor Green -NoNewline
+    Write-Host $($SelectedRoles.RoleName) -ForegroundColor Green
+        
+    Write-Host "The privileged role is valid until:     " -ForegroundColor Green -NoNewline
+    Write-Host  $($SelectedRoles.ExpirationTime) -ForegroundColor Green
+    Exit
+    }
+}
+
+Write-host "All roles assigned to this account" -ForegroundColor Green
+Get-PrivilegedRoleAssignment | Format-List RoleName, IsElevated, IsPermanent
+
 $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.ExpirationTime)} | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}
 
 #Check currently assigned roles
@@ -73,7 +99,7 @@ If ($CurrentRoles) {
         Write-Host}
 
     #Disable current roles on request
-    If (($DisableRole = Read-Host "Do you want to disable listed role(s)? [$($DisableRoleDefault)]") -eq '') {$DisableRole = $DisableRoleDefault} Else {}
+    If (($DisableRole = Read-Host "Do you want to disable active role(s)? [$($DisableRoleDefault)]") -eq '') {$DisableRole = $DisableRoleDefault} Else {}
     If ($DisableRole -eq "Y") {$CurrentRoles | ForEach-Object {Disable-PrivilegedRoleAssignment -RoleId $_.RoleId | Out-Null}
 
     $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName, ExpirationTime, RoleID
@@ -105,4 +131,4 @@ Else {
         Write-Host  $($Role.ExpirationTime) -ForegroundColor Green
         Write-Host}}}
 
-Disconnect-PimService
+#Disconnect-PimService
