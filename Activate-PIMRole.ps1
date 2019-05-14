@@ -5,9 +5,11 @@ This script activates a PIM role
 .DESCRIPTION
 UserName is a required parameter
 
-.PARAMETER 
-UserName
-GlobalAdmin
+.PARAMETER UserName
+Required paramter. UserName for the acount with roles to activate.
+
+.PARAMETER GlobalAdmin
+Optional parameter. Using this parameter will skip the role picker and just activate the Global Admin role as quickly as possible.
 
 .NOTES
 1.0 - 
@@ -27,6 +29,8 @@ Special thanks to Damian Scoles (https://www.practicalpowershell.com/) for an as
 
 .EXAMPLE
 Activate-PIMRole -UserName nathan@mcsmlab.com
+
+.Example
 Activate-PIMRole -UserName nathan@mcsmlab.com -GlobalAdmin
 
 .LINK
