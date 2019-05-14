@@ -1,43 +1,32 @@
 <#
 .SYNOPSIS
-This script activates one or more PIM roles
+This script activates a PIM role
 
 .DESCRIPTION
-UserName is a required parameter, GlobalAdmin is optional and will do a quick activation of the global admin role without the role picker.
-Default answers can be changed in the default answers section after the parameters.
+UserName is a required parameter
 
-.PARAMETER UserName
-UserName for the account that owns the PIM roles to activate. This is required
-
-.PARAMETER GlobalAdmin
-If present the script will do a quick activation of the Global Admin role without the role picker.
-
-.INPUTS
-None
-
-.OUTPUTS
-None
+.PARAMETER 
+UserName
+GlobalAdmin
 
 .NOTES
 1.0 - 
 2.0 - Added default answers
 3.0 - Now translates role activation time to the local time zone of the computer running the script
 3.1 - Cleaned up time translation. Cleaned up formating and output.
-3.2 - Changed display of multiple active roles
+3.2 - Changed display of multiple active roles.
 4.0 - Added -GlobalAdmin switch which activates Global Admin role
+4.1 - Added functions for a couple chucks of code that are used multiple times
 
 Activate-PIMRole.ps1
-v4.0
-5/7/2019
+v4.1
+5/14/2019
 By Nathan O'Bryan, MVP|MCSM
 nathan@mcsmlab.com
-
 Special thanks to Damian Scoles (https://www.practicalpowershell.com/) for an assist with the time translation in V3
 
 .EXAMPLE
 Activate-PIMRole -UserName nathan@mcsmlab.com
-
-.EXAMPLE
 Activate-PIMRole -UserName nathan@mcsmlab.com -GlobalAdmin
 
 .LINK
@@ -45,12 +34,33 @@ https://www.mcsmlab.com/about
 https://github.com/MCSMLab/Activate-PimRoles/blob/master/Activate-PIMRole.ps1
 #>
 
-#Command line parameters
+#Command line parameter
 [cmdletbinding()]
 Param (
     [Parameter(Mandatory=$True)][String]$UserName,
     [Parameter(Mandatory=$False)][Switch]$GlobalAdmin
     )
+
+Function Show-ActiveRoles {
+$CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.ExpirationTime)} | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}        
+If (-Not ($CurrentRoles)) {Write-Host "The requested role needs approval before it will be active" -ForegroundColor Yellow}
+
+ForEach ($Role in $CurrentRoles) {
+    Write-Host "You now have the privileged role:       " -ForegroundColor Green -NoNewline
+    Write-Host $($Role.RoleName) -ForegroundColor Green
+        
+    Write-Host "The privileged role is valid until:     " -ForegroundColor Green -NoNewline
+    Write-Host  $($Role.ExpirationTime) -ForegroundColor Green
+    Write-Host}
+}
+
+Function Ask-Activate {
+If (($Reason = Read-Host "Provide a reason why you need the elevated role: $($_.RoleName) [$($ReasonDefault)]") -eq '') {$Reason = $ReasonDefault} Else {}
+If (($Duration = Read-Host "Provide a duration for this activation [$($DurationDefault)]") -eq '') {$Duration = $DurationDefault} Else {}
+If (($Ticket = Read-Host "Provide a ticket number for this activation [$($TicketDefault)]") -eq '') {$Ticket = $TicketDefault} Else {}
+
+Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason -Duration $Duration -TicketNumber $Ticket | Out-Null
+}
 
 #Default answers
 $DisableRoleDefault = 'Y'
@@ -69,61 +79,33 @@ If (-Not ( Get-Module -ListAvailable 'Microsoft.Azure.ActiveDirectory.PIM.PSModu
     
     #Check if the script runs in an local Administrator context
     If ($(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) -eq $True)
-        {Install-Module -Name Microsoft.Azure.ActiveDirectory.PIM.PSModule}
-  
+        {Install-Module -Name Microsoft.Azure.ActiveDirectory.PIM.PSModule} 
+    
     #Exit if PowerShell if not run as admin
-    Else {
-    Write-Host "You are not running the script as Local Admin. The script will exit now" -ForegroundColor Yellow
-    Exit
-    }
-}
+    Else
+    {Write-Host "You are not running the script as Local Admin. The script will exit now" -ForegroundColor Yellow
+    Exit}}
 
-#Connect to PIM service
 Connect-PimService -UserName $UserName | Format-List UserName, TenantName
 
-#If GlobalAdmin switch is used, activate just that role and exit
 If ($GlobalAdmin) {
-    $SelectedRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.RoleName -Eq "Global Administrator")} | Select-Object RoleName, RoleID
+    $SelectedRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.RoleName -Eq "Global Administrator") } | Select-Object RoleName, ExpirationTime, RoleID
 
     $SelectedRoles | ForEach-Object {
-        If (($Reason = Read-Host "Provide a reason why you need the elevated role: $($_.RoleName) [$($ReasonDefault)]") -eq '') {$Reason = $ReasonDefault} Else {}
-        If (($Duration = Read-Host "Provide a duration for this activation [$($DurationDefault)]") -eq '') {$Duration = $DurationDefault} Else {}
-        If (($Ticket = Read-Host "Provide a ticket number for this activation [$($TicketDefault)]") -eq '') {$Ticket = $TicketDefault} Else {}
-        
-    Write-Host
-    Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason -Duration $Duration -TicketNumber $Ticket | Out-Null
-    
-    #Show active roles
-    $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.ExpirationTime)} | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}
-    If (-Not ($CurrentRoles)) {Write-Host "The requested role needs approval before it will be active" -ForegroundColor Yellow}
-    ForEach ($Role in $CurrentRoles) {
-        Write-Host "You now have the privileged role:       " -ForegroundColor Green -NoNewline
-        Write-Host $($Role.RoleName) -ForegroundColor Green
-        
-        Write-Host "The privileged role is valid until:     " -ForegroundColor Green -NoNewline
-        Write-Host  $($Role.ExpirationTime) -ForegroundColor Green
-        Write-Host}
-
+    Ask-Activate
+    Show-ActiveRoles
     Exit
     }
 }
 
-#Show all roles available for this account
 Write-host "All roles assigned to this account" -ForegroundColor Green
 Get-PrivilegedRoleAssignment | Format-Table RoleName, IsElevated, IsPermanent -AutoSize
 
 $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.ExpirationTime)} | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}
 
-#Check currently active roles
+#Check currently assigned roles
 If ($CurrentRoles) {
-    #Show active roles
-    ForEach ($Role in $CurrentRoles) {
-        Write-Host "You now have the privileged role:       " -ForegroundColor Green -NoNewline
-        Write-Host $($Role.RoleName) -ForegroundColor Green
-        
-        Write-Host "The privileged role is valid until:     " -ForegroundColor Green -NoNewline
-        Write-Host  $($Role.ExpirationTime) -ForegroundColor Green
-        Write-Host}
+    Show-ActiveRoles
 
     #Disable current roles on request
     If (($DisableRole = Read-Host "Do you want to disable active role(s)? [$($DisableRoleDefault)]") -eq '') {$DisableRole = $DisableRoleDefault} Else {}
@@ -132,30 +114,18 @@ If ($CurrentRoles) {
     $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object { ($_.ExpirationTime) } | Select-Object RoleName, ExpirationTime, RoleID
         If (-Not ($CurrentRoles)) {Write-Host "You do not have any active roles" -ForegroundColor Yellow }}}
 
-#Choose and activate role(s)
 Else {   
+    Write-Host "You do not have any active roles" -ForegroundColor Yellow
+    
     #Activate a role
     If (($EnableRole = Read-Host "Do you want to enable one or more privileged role(s)? [$($EnableRoleDefault)]") -eq '') {$EnableRole = $EnableRoleDefault} Else {}
     If ($EnableRole -eq "Y") {
         $SelectedRoles = Get-PrivilegedRoleAssignment | Out-GridView -Title "Select the role(s) that you want to enable" -PassThru
         $SelectedRoles | ForEach-Object {
-            If (($Reason = Read-Host "Provide a reason why you need the elevated role: $($_.RoleName) [$($ReasonDefault)]") -eq '') {$Reason = $ReasonDefault} Else {}
-            If (($Duration = Read-Host "Provide a duration for this activation [$($DurationDefault)]") -eq '') {$Duration = $DurationDefault} Else {}
-            If (($Ticket = Read-Host "Provide a ticket number for this activation [$($TicketDefault)]") -eq '') {$Ticket = $TicketDefault} Else {}
-
-            Enable-PrivilegedRoleAssignment -RoleId $_.RoleId -Reason $Reason -Duration $Duration -TicketNumber $Ticket | Out-Null
+            Ask-Activate
             Write-Host}
 
-    #Show active roles
-    $CurrentRoles = Get-PrivilegedRoleAssignment | Where-Object {($_.ExpirationTime)} | Select-Object RoleName, ExpirationTime, RoleID | ForEach-Object {$BaseTime = [DateTime]$_.ExpirationTime;$_.ExpirationTime = $BaseTime;Return $PSItem}        
-    If (-Not ($CurrentRoles)) {Write-Host "The requested role needs approval before it will be active" -ForegroundColor Yellow}
-    ForEach ($Role in $CurrentRoles) {
-        Write-Host "You now have the privileged role:       " -ForegroundColor Green -NoNewline
-        Write-Host $($Role.RoleName) -ForegroundColor Green
-        
-        Write-Host "The privileged role is valid until:     " -ForegroundColor Green -NoNewline
-        Write-Host  $($Role.ExpirationTime) -ForegroundColor Green
-        Write-Host}}}
+    Show-ActiveRoles
+    }}
 
-#Disconnect PowerShell session from PIM service
 Disconnect-PimService
